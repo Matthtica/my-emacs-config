@@ -1,0 +1,617 @@
+#+TITLE: KARL's Emacs Config
+#+AUTHOR: KARL
+
+* PACKAGE MANAGEMENT
+  ** Setup package.el to work with MELPA.
+
+#+begin_src emacs-lisp
+  (require 'package)
+  (add-to-list 'package-archives
+		  '("melpa" . "https://melpa.org/packages/") t)
+  ;(package-initialize)
+
+  (setq package-enable-at-startup nil)
+  (defvar bootstrap-version)
+  (let ((bootstrap-file
+		 (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
+		(bootstrap-version 6))
+	(unless (file-exists-p bootstrap-file)
+	  (with-current-buffer
+		  (url-retrieve-synchronously
+		   "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
+		   'silent 'inhibit-cookies)
+		(goto-char (point-max))
+		(eval-print-last-sexp)))
+	(load bootstrap-file nil 'nomessage))
+  (setq package-native-compile t)
+#+end_src
+
+** Installing use-package
+#+begin_src emacs-lisp
+    (unless (package-installed-p  'use-package)
+      (package-refresh-contents)
+      (package-install 'use-package))
+    (setq use-package-always-ensure t)
+#+end_src
+
+* PROJECTILE
+#+begin_src  emacs-lisp
+  (use-package  projectile
+    :ensure t
+    :config
+    (projectile-global-mode 1))
+#+end_src
+
+* DASHBOARD
+  Emacs Dashboard is an extensible startup screen showing you recent files, bookmarks, agenda items and an Emacs banner.
+#+begin_src emacs-lisp
+  (use-package dashboard-ls)
+  (use-package dashboard
+	:init
+	(setq dashboard-set-heading-icons t)
+	(setq dashboard-set-file-icons t)
+	;(setq dashboard-banner-logo-title "Emacs Is More Than a Text Editor!")
+	(setq dashboard-startup-banner 'logo)
+	(setq dashboard-center-content t)
+	(setq dashboard-items '((recents . 10)
+							(ls-directories . 3)
+							(bookmarks . 3)
+							(agenda . 5)
+							(projects .5)
+							(registers . 5)))
+	:config
+	(dashboard-setup-startup-hook)
+	(dashboard-modify-heading-icons '((recents . "file-text")
+					  (bookmarks . "book"))))
+#+end_src
+
+* File Management
+#+begin_src emacs-lisp
+	(use-package neotree
+	  :config (setq neo-theme (if (display-graphic-p) 'icons 'arrow)))
+#+end_src
+
+* Tabs
+#+begin_src emacs-lisp
+  (use-package centaur-tabs
+	:config
+	(setq centaur-tabs-style "bar"
+		  centaur-tabs-height 32
+		  centaur-tabs-set-icons t
+		  centaur-tabs-set-modified-marker t
+		  centaur-tabs-gray-out-icons 'buffer
+		  centaur-tabs-set-bar 'left
+		  x-underline-at-descent-line t
+		  centaur-tabs-cycle-scope 'tabs)
+	(centaur-tabs-headline-match)
+	(setq uniquify-separator "/")
+	(setq uniquify-buffer-name-style 'forward)
+	(defun centaur-tabs-buffer-groups ()
+	  "`centaur-tabs-buffer-groups` control buffers' group rules.
+  Group centaur-tabs with mode if buffer is derived from `eshell-mode' `emacs-lisp-mode' `dired-mode' `org-mode' `magit-mode'.
+  All buffer name start with * will group to \"Emacs\".
+  Other buffer group by `centaur-tabs-get-group-name' with project name."
+	  (list
+	   (cond
+		((or (string-equal "*" (substring (buffer-name) 0 1))
+			 (memq major-mode '(magit-process-mode
+								magit-status-mode
+								magit-diff-mode
+								magit-log-mode
+								magit-file-mode
+								magit-blob-mode
+								magit-blame-mode)))
+		 "Emacs")
+		((derived-mode-p 'prog-mode)
+		 "Editing")
+		((derived-mode-p 'dired-mode)
+		 "Dired")
+		((memq major-mode '(helpful-mode
+							help-mode))
+		 "Help")
+		((memq major-mode '(org-mode
+							org-agenda-clockreport-mode
+							org-src-mode
+							org-agenda-mode
+							org-beamer-mode
+							org-indent-mode
+							org-bullets-mode
+							org-cdlatex-mode
+							org-agenda-log-mode
+							diary-mode))
+		 "OrgMode")
+		(t
+		 (centaur-tabs-get-group-name (current-buffer))))))
+	(centaur-tabs-mode t))
+#+end_src
+
+* Keybinding
+** EVIL
+#+begin_src emacs-lisp
+  (use-package evil
+	  :bind (("<escape>" . keyboard-escape-quit))
+	  :init      ;; tweak evil's configuration before loading it
+	  (setq evil-want-keybinding nil)
+	  :config
+	  (evil-mode 1)
+	  (define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
+	  (define-key evil-insert-state-map (kbd "C-h") 'evil-delete-backward-char-and-join)
+	  (evil-global-set-key 'motion "j" 'evil-next-visual-line)
+	  (evil-global-set-key 'motion "k" 'evil-previous-visual-line))
+
+  (use-package evil-collection
+	  :after evil
+	  :config
+	  (setq evil-want-integration t)
+	  (evil-collection-init))
+  (global-evil-leader-mode)
+
+  (use-package avy)
+#+end_src
+
+** WHICH KEY
+#+begin_src emacs-lisp
+  (use-package which-key
+    :init (which-key-mode)
+    :config (setq which-key-idle-delay 0.3))
+#+end_src
+
+** GENERAL KEYBINDINGS
+  #+begin_src emacs-lisp
+	(use-package general
+	  :config
+	  (general-evil-setup t)
+	  (general-create-definer karl/leader-keys
+		:keymaps '(normal insert visual emacs)
+		:prefix "SPC"
+		:global-prefix "C-SPC")
+	  (karl/leader-keys
+		"SPC" '(counsel-M-x :which-key "M-x")
+		"."   '(counsel-find-file :which-key "Find file")
+		;; B
+		"b b" '(ibuffer :which-key "Ibuffer")
+		"b k" '(kill-current-buffer :which-key "Kill current buffer")
+		"b n" '(next-buffer :which-key "Next buffer")
+		"b p" '(previous-buffer :which-key "Previous buffer")
+		"b B" '(ibuffer-list-buffers :which-key "Ibuffer list buffers")
+		"b K" '(kill-buffer :which-key "Kill buffer")
+		;; D
+		"d" '(dired :which-key "Dired")
+		;; E
+		"e h" '(counsel-esh-history :which-key "Eshell history")
+		"e s" '(sly-eval-last-expression :which-key "Sly eval last expression")
+		"e c" '(org-ctrl-c-ctrl-c :which-key "Eval code block")
+		"e e" '(eval-last-sexp :which-key "Eval last expression")
+		"e b" '(eval-buffer :which-key "Eval buffer")
+		;; F
+		"f r" '(counsel-recentf :which-key "Recent files")
+		;; G
+		"g" '(avy-goto-char-2 :which-key "Avy goto char 2")
+		;; H
+		"h r r" '((lambda () (interactive) (load-file "~/.emacs.d/init.el")) :which-key "Reload init")
+		"h v" '(describe-variable :whick-key "Describe-variable")
+		"h f" '(describe-function :whick-key "Describe-function")
+		"h p" '(describe-package :whick-key "Describe-package")
+		;; L
+		"l p" '(list-packages :which-key "List packages")
+		"l t" '(load-theme :which-key "Load theme")
+		;; M
+		"m" '(magit-status :which-key "Magit")
+		;; N
+		"n" '(neotree-toggle :which-key "Neotree Toggle")
+		;; O
+		"o e" '(org-edit-special :which-key "Org edit special")
+		"o r l" '(org-roam-buffer-toggle :which-key "Org roam buffer toggle")
+		"o r f" '(org-roam-node-find :which-key "Org roam node find")
+		"o r i" '(org-roam-node-insert :which-key "Org roam node insert")
+		"o r c" '(org-id-get-create :which-key "Org create header node")
+		"o r u" '(org-roam-ui-mode :which-key "Org roam Ui")
+		;; S
+		"s"  '(save-buffer :which-key "Save buffer")
+		;; T
+		"t l" '(toggle-truncate-lines :which-key "Toggle truncate lines")
+		"t s" '(centaur-tabs-counsel-switch-group :which-key "Switch tab group")
+		"t g" '(centaur-tabs-group-by-projectile-project :which-key "Group by projectile")
+		"t b" '(centaur-tabs-group-buffer-groups :which-key "Buffer group")
+		"t n" '(centaur-tabs-forward :which-key "Next tab")
+		"t p" '(centaur-tabs-backward :which-key "Previous tab")
+		;; W
+		"w c" '(evil-window-delete :which-key "Close window")
+		"w n" '(evil-window-new :which-key "New window")
+		"w s" '(evil-window-split :which-key "Horizontal split window")
+		"w v" '(evil-window-vsplit :which-key "Horizontal split window")
+		"w h" '(evil-window-left :which-key "Window left")
+		"w j" '(evil-window-down :which-key "Window down")
+		"w k" '(evil-window-up :which-key "Window up")
+		"w l" '(evil-window-right :which-key "Window right")
+		"w w" '(evil-window-next :which-key "Goto next window")))
+  #+end_src
+
+* Programming
+** Lsp
+#+begin_src emacs-lisp
+	(use-package lsp-mode
+	  :commands (lsp lsp-deferred)
+	  :init
+	  (setq lsp-keymap-prefix "C-c l")
+	  :config
+	  (lsp-enable-which-key-integration t)
+	  (setq lsp-headerline-breadcrumb-enable nil))
+#+end_src
+
+** Completion Frontend
+#+begin_src emacs-lisp
+	(use-package company
+	  :hook (emacs-lisp-mode . (lambda ()
+				  (setq-local company-backends '(company-elisp))))
+	  :config
+	  (setq company-idle-delay 0
+		company-minimum-prefix-length 1
+		company-show-numbers t))
+	(add-hook 'after-init-hook 'global-company-mode)
+#+end_src
+
+** Flycheck
+#+begin_src emacs-lisp
+  (use-package flycheck
+    :init
+    (global-flycheck-mode))
+#+end_src
+
+** Syntax Highlighting
+#+begin_src emacs-lisp
+	  (use-package tree-sitter
+		:config
+		(global-tree-sitter-mode)
+		(add-hook 'tree-sitter-after-on-hook #'tree-sitter-hl-mode))
+	  (use-package tree-sitter-langs
+		:after tree-sitter)
+	
+#+end_src
+
+** Language
+*** TypeScript
+#+begin_src emacs-lisp
+  (add-hook 'typescript-mode-hook 'lsp-deferred)
+#+end_src
+
+*** React
+#+begin_src emacs-lisp
+  (defun setup-tide-mode()
+	"Setup function for tide."
+	(interactive)
+	(tide-setup)
+	(flycheck-mode +1)
+	(setq flycheck-check-syntax-automatically '(save mode-enabled))
+	(eldoc-mode +1)
+	(tide-hl-identifier-mode +1)
+	(company-mode +1))
+
+  ;(use-package web-mode
+;	:mode (("\\.html?\\'" . web-mode)
+;		   ("\\.tsx\\'" . web-mode)
+;		   ("\\.jsx\\'" . web-mode))
+;	:config
+;	(setq web-mode-markup-indent-offset 2
+;		  web-mode-css-indent-offset 4
+;		  web-mode-code-indent-offset 4
+;		  web-mode-block-padding 2
+;		  web-mode-comment-style 2
+;
+;		  web-mode-enable-css-colorization t
+;		  web-mode-enable-auto-pairing t
+;		  web-mode-enable-comment-keywords t
+;		  web-mode-enable-current-element-highlight t))
+;  (add-hook 'web-mode-hook
+;			(lambda ()
+;			  (when (string-equal "tsx" (file-name-extension buffer-file-name))
+;				(setup-tide-mode))))
+;  (flycheck-add-mode 'typescript-tslint 'web-mode)
+
+  (use-package typescript-mode
+	:after tree-sitter
+	:config
+	(define-derived-mode typescriptreact-mode typescript-mode "TypeScript TSX")
+	(add-to-list 'auto-mode-alist '("\\.tsx?\\'" . typescriptreact-mode))
+	(add-to-list 'tree-sitter-major-mode-language-alist '(typescriptreact-mode . tsx)))
+
+  (use-package tide
+	:init
+	:after (typescript-mode company flycheck)
+	:hook ((typescript-mode . tide-setup)
+		   (before-save . tide-format-before-save)))
+
+  
+#+end_src
+
+*** C/C++
+#+begin_src emacs-lisp
+  (add-hook 'c++-mode-hook 'lsp-deferred)
+  (add-hook 'c-mode-hook 'lsp-deferred)
+#+end_src
+
+*** Python
+#+begin_src emacs-lisp
+  (add-hook 'python-mode-hook 'lsp-deferred)
+  (add-hook 'python-mode-hook 'company-mode)
+#+end_src
+
+*** Rust
+#+begin_src emacs-lisp
+  (use-package rust-mode
+	:mode ("\\.rs\\'" . rust-mode))
+  (add-hook 'rust-mode-hook 'lsp-deferred)
+#+end_src
+*** Svelte
+#+begin_src emacs-lisp
+	(use-package svelte-mode
+	  :init (customize-set-variable 'svelte-basic-offset 2)
+	  (customize-set-variable 'svelte-display-submode-name t))
+	(add-hook 'svelte-mode-hook 'lsp-deferred)
+#+end_src
+
+*** Flutter
+#+begin_src emacs-lisp
+  (use-package lsp-dart)
+  (use-package dart-mode)
+  (add-hook 'dart-mode-hook 'lsp-deferred)
+  (use-package hover)
+#+end_src
+*** SCSS
+#+begin_src emacs-lisp
+  (use-package scss-mode)
+  (autoload 'scss-mode "scss-mode")
+  (add-to-list 'auto-mode-alist '("\\.scss\\'" . scss-mode))
+  (add-hook 'scss-mode-hook 'lsp-deferred)
+#+end_src
+
+** AI Completion
+#+begin_src emacs-lisp
+  (use-package company-tabnine)
+#+end_src
+
+** Indent guide lines
+#+begin_src emacs-lisp
+	;(use-package highlight-indent-guides
+	;  :config
+	;  (setq highlight-indent-guides-method 'character
+	;		highlight-indent-guides-character ?|)
+	;  (add-hook 'prog-mode-hook 'highlight-indent-guides-mode))
+#+end_src
+
+* SLIME
+#+begin_src emacs-lisp
+  ;; slime setup
+  (use-package sly)
+#+end_src
+
+* Org things
+** Org roam
+#+begin_src emacs-lisp
+  (use-package org-roam
+	  :custom
+	  (org-roam-directory "~/RoamNotes") 
+	  :config
+	  (org-roam-setup))
+
+  (use-package org-roam-ui
+  :after org-roam
+  :config
+  (setq org-roam-ui-sync-theme t
+		  org-roam-ui-follow t
+		  org-roam-ui-update-on-save t
+		  org-roam-ui-open-on-start t))
+#+end_src
+
+** Org-preetier
+#+begin_src  emacs-lisp
+  (use-package org-superstar)
+  (add-hook 'org-mode-hook (lambda () (org-superstar-mode 1)))
+#+end_src
+
+* Reading
+#+begin_src emacs-lisp
+  (use-package pdf-tools
+	:mode ("\\.pdf\\'" . pdf-view-mode)
+	:config
+	(add-hook 'pdf-view-mode-hook
+			  (lambda ()
+			  (set (make-local-variable
+					  'evil-normal-state-cursor)
+					  (list nil))))
+	(add-hook 'pdf-view-mode-hook 'pdf-view-themed-minor-mode))
+
+  (use-package saveplace-pdf-view
+	:config (save-place-mode 1))
+#+end_src
+
+* THEME
+** Colorscheme
+#+begin_src emacs-lisp
+  (use-package doom-themes
+	:init (setq doom-themes-enable-bold t
+				doom-themes-enable-italic t
+				doom-gruvbox-dark-variant "hard"))
+
+  (use-package gruvbox-theme)
+  (use-package nord-theme)
+  (use-package base16-theme)
+
+  ;;(load-theme 'doom-one t)
+  ;;(load-theme 'doom-gruvbox t)
+  ;;(load-theme 'doom-gruvbox-light t)
+  ;;(load-theme 'base16-gruvbox-dark-hard t)
+  ;;(load-theme 'nord t)
+  ;;(load-theme 'doom-nord t)
+  ;;(load-theme 'base16-everforest t)
+  ;;(load-theme 'doom-plain-dark t)
+  ;;(load-theme 'doom-tokyo-night t)
+  (load-theme 'doom-palenight t)
+#+end_src
+
+** Mode line
+#+begin_src emacs-lisp
+  ;(use-package doom-modeline
+  ;  :ensure t
+  ;  :init (doom-modeline-mode 1)
+  ;  :custom ((doom-modeline-height 15)))
+  (use-package spaceline
+    :config
+    (require 'spaceline-config)
+    (spaceline-spacemacs-theme))
+#+end_src
+
+* OPTIONS
+** Disable Menu, Toolbar and Scrollbar
+#+begin_src emacs-lisp
+  (menu-bar-mode -1)
+  (tool-bar-mode -1)
+  (scroll-bar-mode -1)
+  (fringe-mode 1)
+  (tooltip-mode -1)
+  (setq scroll-conservatively 100)
+  (beacon-mode 1)
+  (setq org-startup-with-inline-images t)
+#+end_src
+
+** Text Formatting
+*** Truncate line
+#+begin_src emacs-lisp
+  (setq-default truncate-lines t)
+  ;;aouuuuuuuuuuuuuuuuuasotehustaoseuthsaotuehstaohseutaosteuhsatoseutaostuesaotuesthaosteuhsaotheustohauh
+#+end_src
+
+*** Line and Column Number
+#+begin_src emacs-lisp
+  (column-number-mode)
+  (global-display-line-numbers-mode 1)
+  ;;(global-visual-line-mode nil)
+  (dolist (mode '(term-mode-hook
+				  shell-mode-hook
+				  eshell-mode-hook
+				  pdf-view-mode-hook))
+	(add-hook mode (lambda () (display-line-numbers-mode 0))))
+#+end_src
+
+*** Tab Width
+#+begin_src emacs-lisp
+  (setq-default c-basic-offset 4
+	  tab-width 4
+	  indent-tabs-mode t)
+#+end_src
+*** AutoPair brackets
+#+begin_src emacs-lisp
+  (use-package smartparens
+	:config (smartparens-global-mode))
+#+end_src
+
+* FONTS
+#+begin_src emacs-lisp
+  (set-face-attribute 'default nil
+	:font "BlexMono Nerd Font 14"
+	:weight 'medium)
+  (set-face-attribute 'variable-pitch nil
+	:font "BlexMono Nerd Font 14"
+	:weight 'medium)
+  (set-face-attribute 'fixed-pitch nil
+	:font "BlexMono Nerd Font 14"
+	:weight 'medium)
+  (add-to-list 'default-frame-alist '(font . "BlexMono Nerd Font 14"))
+  (use-package all-the-icons)
+  (face-background 'default nil)
+  (face-foreground 'default nil)
+#+end_src
+
+#+RESULTS:
+
+** Zooming In and Out
+You can use the bindings CTRL plus =/- for zooming in/out. You can also use CTRL + mouse wheel.
+#+begin_src emacs-lisp
+  (global-set-key (kbd "C-=") 'text-scale-increase)
+  (global-set-key (kbd "C--") 'text-scale-decrease)
+  (global-set-key (kbd "<C-wheel-down>") 'text-scale-decrease)
+  (global-set-key (kbd "<C-wheel-up>") 'text-scale-increase)
+#+end_src
+
+* Rainbow & Highlight
+#+begin_src emacs-lisp
+  (use-package rainbow-mode)
+  (use-package hl-todo
+	:init (setq hl-todo-keywords-faces
+				'(("TODO" . "#FF0000")
+				  ("FIXME" . "#FF0000")
+				  ("DEBUG" . "A020F0")
+				  ("GOTCHA" . "#FF4500")
+				  ("STUB" . "#1E90FF")))
+	  :config (global-hl-todo-mode))
+#+end_src
+
+* IVY
+** Counsel
+#+begin_src emacs-lisp
+  (use-package counsel
+    :bind (("M-x" . counsel-M-x)
+	   ("C-x b" . counsel-ibuffer)
+	   ("C-x C-f" . counsel-find-file)
+	   :map minibuffer-local-map
+	   ("C-r" . 'counsel-minibuffer-history))
+    :config
+    (setq ivy-initial-inputs-alist nil)) ;; Don't start searchs with ^
+#+end_src
+
+** Ivy
+#+begin_src emacs-lisp
+  (use-package ivy
+    :ensure t
+    :diminish
+    :bind (("C-s" . swiper)
+	   :map ivy-minibuffer-map
+	   ("TAB" . ivy-alt-done)
+	   ("C-l" . ivy-next-line)
+	   ("C-h" . ivy-previous-line)
+	   :map ivy-switch-buffer-map
+	   ("C-h" . ivy-previous-line)
+	   ("C-l" . ivy-done)
+	   ("C-d" . ivy-switch-buffer-kill)
+	   :map ivy-reverse-i-search-map
+	   ("C-h" . ivy-previous-line)
+	   ("C-d" . ivy-reverse-i-search-kill))
+    :config
+    (ivy-mode 1))
+  (use-package ivy-rich
+    :init
+    (ivy-rich-mode 1))
+#+end_src
+
+** Ivy posframe
+#+begin_src emacs-lisp
+   (use-package ivy-posframe
+	  :init (setq ivy-posframe-display-functions-alist '((t . ivy-posframe-display-at-frame-center)))
+  :config (ivy-posframe-mode 1))
+#+end_src
+
+** Prescient
+#+begin_src emacs-lisp
+  (use-package ivy-prescient
+	:after counsel
+	:config
+	(ivy-prescient-mode 1))
+#+end_src
+
+* Magit
+#+begin_src emacs-lisp
+  (use-package magit)
+#+end_src
+
+* HELP
+#+begin_src emacs-lisp
+  (use-package helpful
+    :custom
+    (counsel-describe-function-function #'helpful-callable)
+    (counsel-describe-variable-function #'helpful-variable)
+    :bind
+    ([remap describe-function] . counsel-describe-function)
+    ([remap describe-command] . helpful-command)
+    ([remap describe-variable] . counsel-describe-variable)
+    ([remap describe-key] . helpful-key))
+#+end_src
